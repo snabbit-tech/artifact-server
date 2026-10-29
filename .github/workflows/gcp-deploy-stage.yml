@@ -1,0 +1,40 @@
+# GCP/GKE staging deploy for artifact-server.
+#
+# Trigger: push to `staging` (shipyard's branch guard refuses a non-ephemeral
+# stg deploy from any other branch), plus manual dispatch.
+#
+# The Dockerfile lives at packaging/oci/Dockerfile; the build context is the
+# repo root (it copies package.json, apps/web, src, scripts, patches).
+#
+# Dispatching WITH a namespace is the test path: the image is built and pushed
+# to Artifact Registry and the Facets release is deliberately skipped
+# (is_ephemeral guard inside the reusable workflow).
+
+name: GCP Deploy Stage
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      namespace:
+        description: "Ephemeral namespace. Set this to build+push without releasing."
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  deploy:
+    permissions:
+      id-token: write
+      contents: read
+    uses: snabbit-tech/shipyard/.github/workflows/gcp-deploy.yml@main
+    with:
+      service_name: artifact-server
+      service_repo: ${{ github.repository }}
+      environment: stg
+      namespace: ${{ inputs.namespace }}
+      facets_artifact_name: snabbit-gcp-artifact-server
+      dockerfile: packaging/oci/Dockerfile
+      docker_context: .
+    secrets: inherit
